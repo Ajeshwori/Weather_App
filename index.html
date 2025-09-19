@@ -246,12 +246,20 @@
       })
     });
 
-    window.addEventListener('load', ()=>{
-      try{
-        const last = localStorage.getItem('lastLocation');
-        if(last){ input.value = last; lastSearchEl.textContent = 'Loaded from last session'; }
-      }catch(e){}
-    });
+   window.addEventListener('load', () => {
+  try {
+    const last = localStorage.getItem('lastLocation');
+    if (last) {
+      const input = document.getElementById('location-input'); // adjust ID
+      const lastSearchEl = document.getElementById('last-search'); // adjust ID
+      if (input) input.value = last;
+      if (lastSearchEl) lastSearchEl.textContent = 'Loaded from last session';
+    }
+  } catch (e) {
+    console.error('Error loading last location:', e);
+  }
+});
+
 
     input.addEventListener('keydown', (ev)=>{
       if(ev.key === 'Escape') input.value = '';
