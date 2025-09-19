@@ -15,7 +15,7 @@
       margin:0; background:linear-gradient(180deg,#071126 0%, #071827 100%); color:#e6eef8; display:flex; align-items:center; justify-content:center; padding:32px;
     }
     .app{
-      width:100%; max-width:780px; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:18px; padding:22px; box-shadow: 0 8px 30px rgba(2,6,23,0.6);
+      width:100%; max-width:880px; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:18px; padding:22px; box-shadow: 0 8px 30px rgba(2,6,23,0.6);
       border:1px solid rgba(255,255,255,0.03);
     }
     header{display:flex; align-items:center; justify-content:space-between; gap:12px}
@@ -26,7 +26,7 @@
     button{padding:10px 14px; border-radius:10px; border:0; background:linear-gradient(90deg,var(--accent), #3b82f6); color:#04263a; font-weight:600; cursor:pointer}
     button:active{transform:translateY(1px)}
 
-    .content{display:grid; grid-template-columns:1fr 220px; gap:18px; margin-top:20px}
+    .content{display:grid; grid-template-columns:1fr 260px; gap:18px; margin-top:20px}
     .card{background:rgba(255,255,255,0.02); padding:18px; border-radius:var(--radius); min-height:160px; border:1px solid rgba(255,255,255,0.03)}
 
     .main .temp{font-size:48px; margin:0; display:flex; align-items:baseline; gap:8px}
@@ -38,6 +38,11 @@
     .small-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
     .stat{background:rgba(255,255,255,0.01); padding:10px; border-radius:10px; font-size:13px}
 
+    .forecast{display:flex; gap:12px; margin-top:20px}
+    .forecast-day{flex:1; background:rgba(255,255,255,0.01); border-radius:10px; padding:12px; text-align:center; font-size:14px}
+    .forecast-day img{width:48px;height:48px}
+    .forecast-day .temp{font-weight:600; margin-top:4px}
+
     .loading{display:inline-block; width:20px; height:20px; border-radius:50%; border:3px solid rgba(255,255,255,0.08); border-top-color:var(--accent); animation:spin .8s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
 
@@ -46,6 +51,7 @@
     @media (max-width:700px){
       .content{grid-template-columns:1fr;}
       .icon{width:72px;height:72px}
+      .forecast{flex-direction:column}
     }
   </style>
 </head>
@@ -53,7 +59,7 @@
   <div class="app" role="application" aria-label="Weather app">
     <header>
       <div>
-        <h1>Weather — Current Temperature</h1>
+        <h1>Weather — Current & 3-Day Forecast</h1>
         <p class="lead">Type a city, town or postal code. Powered by WeatherAPI.</p>
       </div>
       <div class="muted">Tip: try "London" or your city</div>
@@ -91,6 +97,8 @@
             <div class="stat">Wind: <strong id="wind">--</strong></div>
             <div class="stat">AQI (US): <strong id="aqi">--</strong></div>
           </div>
+
+          <div class="forecast" id="forecast"></div>
         </div>
       </section>
 
@@ -124,11 +132,9 @@
   </div>
 
   <script>
-    // *** Configuration: the user-provided API key & base URL ***
     const API_KEY = 'a2c6a558b40645eabf1150646251909';
-    const BASE = 'https://api.weatherapi.com/v1/current.json';
+    const BASE = 'https://api.weatherapi.com/v1/forecast.json';
 
-    // Elements
     const form = document.getElementById('searchForm');
     const input = document.getElementById('locationInput');
     const statusEl = document.getElementById('status');
@@ -146,19 +152,17 @@
     const humidity = document.getElementById('humidity');
     const wind = document.getElementById('wind');
     const aqi = document.getElementById('aqi');
+    const forecastEl = document.getElementById('forecast');
 
-    // Helper: set status with optional loading spinner
     function setStatus(text, loading=false){
-      statusEl.innerHTML = loading ? `<span class="loading" aria-hidden="true"></span> ${text}` : text;
+      statusEl.innerHTML = loading ? `<span class="loading"></span> ${text}` : text;
     }
 
-    // Units handling
     function getSelectedUnit(){
       const r = document.querySelector('input[name="units"]:checked');
       return r ? r.value : 'C';
     }
 
-    // Render API data to UI
     function render(data){
       if(!data) return;
       placeholder.style.display = 'none';
@@ -186,14 +190,28 @@
       } else aqi.textContent = 'N/A';
 
       lastSearchEl.textContent = new Date().toLocaleString();
-      // remember last location
+
+      // forecast rendering (next 3 days)
+      forecastEl.innerHTML = '';
+      data.forecast.forecastday.slice(0,3).forEach(day => {
+        const d = new Date(day.date);
+        const max = useUnit==='C' ? day.day.maxtemp_c : day.day.maxtemp_f;
+        const min = useUnit==='C' ? day.day.mintemp_c : day.day.mintemp_f;
+        forecastEl.innerHTML += `
+          <div class="forecast-day">
+            <div>${d.toLocaleDateString(undefined,{weekday:'short'})}</div>
+            <img src="https:${day.day.condition.icon}" alt="${day.day.condition.text}" />
+            <div class="temp">${Math.round(max)}${useUnit} / ${Math.round(min)}${useUnit}</div>
+            <div class="muted" style="font-size:12px">${day.day.condition.text}</div>
+          </div>`;
+      });
+
       try{ localStorage.setItem('lastLocation', input.value.trim()); }catch(e){}
     }
 
-    // Fetch weather from WeatherAPI
     async function fetchWeather(q){
       setStatus('Fetching...', true);
-      const url = `${BASE}?key=${encodeURIComponent(API_KEY)}&q=${encodeURIComponent(q)}&aqi=yes`;
+      const url = `${BASE}?key=${encodeURIComponent(API_KEY)}&q=${encodeURIComponent(q)}&days=3&aqi=yes`;
       try{
         const res = await fetch(url);
         if(!res.ok){
@@ -202,6 +220,7 @@
         }
         const data = await res.json();
         render(data);
+        window.__lastData = data;
         setStatus('Updated');
       }catch(err){
         weatherEl.style.display = 'none';
@@ -212,35 +231,21 @@
       }
     }
 
-    // On submit
     form.addEventListener('submit', (e)=>{
       e.preventDefault();
       const q = input.value.trim();
-      if(!q) return; // required
+      if(!q) return;
       fetchWeather(q);
     });
 
-    // Update displayed temperature unit when user switches units
     document.querySelectorAll('input[name="units"]').forEach(r=>{
       r.addEventListener('change', ()=>{
-        // if we currently have data visible, re-fetch or re-render using current data (prefer re-render)
-        // We'll attempt to re-render using last fetched JSON if available
         if(window.__lastData){
           render(window.__lastData);
-        } else {
-          // no data: do nothing
         }
       })
     });
 
-    // Persist last result in memory to avoid refetch if units change
-    (function wrapRender(){
-      const oldRender = render;
-      window.__lastData = null;
-      render = function(data){ window.__lastData = data; oldRender(data); }
-    })();
-
-    // Load last location if present
     window.addEventListener('load', ()=>{
       try{
         const last = localStorage.getItem('lastLocation');
@@ -248,13 +253,9 @@
       }catch(e){}
     });
 
-    // Accessibility: pressing Enter in input triggers submit (native), Escape clears
     input.addEventListener('keydown', (ev)=>{
       if(ev.key === 'Escape') input.value = '';
     });
-
-    // Notes: If you see CORS errors in the console, your browser blocked the request from the page.
-    // In that case create a tiny server proxy (Node/Express, PHP, etc.) that forwards requests to WeatherAPI and call that from the browser.
   </script>
 </body>
 </html>
